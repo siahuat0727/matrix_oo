@@ -1,13 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
+
+enum mat_type {INT_T, DOUBLE_T};
 
 typedef struct __matrix_impl Matrix;
 struct __matrix_impl {
     void **values;
     int num_row;
     int num_col;
-    int type;
+    enum mat_type type;
+    size_t sizeof_type;
 
     /* operations */
     bool (*equal)(const Matrix, const Matrix);
@@ -15,15 +19,45 @@ struct __matrix_impl {
     void (*print)(const Matrix);
 };
 
+
 #define mat_print_select(X) \
     _Generic((X), \
             int: mat_print_int, double: mat_print_double \
     )
 
+
 #define get_type_num(X) \
     _Generic((X), \
-            int: 0, double: 1 \
+            int: INT_T, double: DOUBLE_T \
     )
+
+enum mat_type get_type_merge(const Matrix a, const Matrix b)
+{
+    switch(a.type) {
+        case INT_T:
+            switch(b.type) {
+                case INT_T:
+                    return get_type_num((int)0 * (int)0);
+                case DOUBLE_T:
+                    return get_type_num((int)0 * (double)0);
+            }
+        case DOUBLE_T:
+            switch(b.type) {
+                case INT_T:
+                    return get_type_num((double)0 * (int)0);
+                case DOUBLE_T:
+                    return get_type_num((double)0 * (double)0);
+            }
+    }
+    return -1;
+}
+
+
+#define get_element_select(X) \
+    _Generic((X), \
+            int: get_element_int, double: get_element_double \
+    )
+
 
 #define MATRIX(mat) ({ \
         Matrix m = { \
@@ -32,22 +66,23 @@ struct __matrix_impl {
             .print = mat_print_select(mat[0][0]), \
             .type = get_type_num(mat[0][0]), \
             .mul =  mul, \
+            .sizeof_type = sizeof(mat[0][0]), \
         }; \
         m.values = (void **)malloc(sizeof(void *) * m.num_row); \
         for (int i = 0; i < m.num_row; ++i) \
-            m.values[i] = malloc(sizeof(__typeof__(mat[0][0])) * m.num_col); \
+            m.values[i] = malloc(sizeof(mat[0][0]) * m.num_col); \
         for (int i = 0; i < m.num_row; ++i) \
             for (int j = 0; j < m.num_col; ++j) \
-                *((__typeof__(mat[0][0])*)(m.values[i]) + j) = mat[i][j]; \
+                *((__typeof__(mat[0][0])*)m.values[i] + j) = mat[i][j]; \
         m; \
         })
 
-#define mat_print_generic(type, format) \
-    static void mat_print_##type(const Matrix m) \
+#define mat_print_generic(T, format) \
+    static void mat_print_##T(const Matrix m) \
     { \
         for (int i = 0; i < m.num_row; ++i) { \
             for (int j = 0; j < m.num_col; ++j) { \
-                printf(format " ", *((type*)(m.values[i])+j)); \
+                printf(format " ", *((T*)m.values[i]+j)); \
             } \
             puts(""); \
         } \
@@ -57,7 +92,25 @@ struct __matrix_impl {
 mat_print_generic(int, "%d")
 mat_print_generic(double, "%f")
 
-#define get_element(mat, i, j, T) *((T*)mat.values[i] + j)
+void (*mat_print_select_num(enum mat_type type))(const Matrix)
+{
+    switch(type) {
+        case INT_T:
+            return mat_print_int;
+        case DOUBLE_T:
+            return mat_print_double;
+    }
+    return NULL;
+}
+
+#define get_element(m, i, j, T) \
+    *((T*)m.values[i] + j)
+
+#define max(a, b) ({ \
+        __typeof__(a) _a = a; \
+        __typeof__(b) _b = b; \
+        _a > _b ? _a : _b; \
+})
 
 static Matrix mul(const Matrix a, const Matrix b)
 {
@@ -68,20 +121,40 @@ static Matrix mul(const Matrix a, const Matrix b)
     Matrix m = {
         .num_row = a.num_row,
         .num_col = b.num_col,
-        .print = mat_print_select(get_element(a, 0, 0, int) * get_element(b, 0, 0, double)),
-        .type = get_type_num(get_element(a, 0, 0, int) * get_element(b, 0, 0, double)),
+        .type = get_type_merge(a, b),
+        .print = mat_print_select_num(get_type_merge(a, b)),
+        .sizeof_type = max(a.sizeof_type, b.sizeof_type),
     };
     m.values = (void **)malloc(sizeof(void *) * m.num_row);
     for (int i = 0; i < m.num_row; ++i) {
-        m.values[i] = malloc(
-                sizeof(get_element(a, 0, 0, int) * get_element(b, 0, 0, double)) * m.num_col);
+        m.values[i] = malloc(m.sizeof_type * m.num_col);
+        memset(m.values[i], 0, m.num_col * m.sizeof_type);
     }
     for (int i = 0; i < m.num_row; ++i) {
         for (int j = 0; j < m.num_col; ++j) {
-            get_element(m, i, j, double) = 0;
             for (int k = 0; k < a.num_col; ++k) {
-                get_element(m, i, j, double) +=
-                    get_element(a, i, k, int) * get_element(b, k, j, double);
+                switch(a.type) {
+                    case INT_T:
+                        switch(b.type) {
+                            case INT_T:
+                                get_element(m, i, j, int) += get_element(a, i, j, int) * get_element(b, i, j, int);
+                                break;
+                            case DOUBLE_T:
+                                get_element(m, i, j, double) += get_element(a, i, j, int) * get_element(b, i, j, double);
+                                break;
+                        }
+                        break;
+                    case DOUBLE_T:
+                        switch(b.type) {
+                            case INT_T:
+                                get_element(m, i, j, double) += get_element(a, i, j, double) * get_element(b, i, j, int);
+                                break;
+                            case DOUBLE_T:
+                                get_element(m, i, j, double) += get_element(a, i, j, double) * get_element(b, i, j, double);
+                                break;
+                        }
+                        break;
+                }
             }
         }
     }
@@ -102,13 +175,10 @@ static Matrix mul(const Matrix a, const Matrix b)
 
 int main()
 {
-    int m1[2][3] = { {0, 1, 2}, {3, 4, 5}, };
-    double m2[3][2] = { {0, 1}, {2, 3}, {4, 5}, };
-
-    Matrix m = MATRIX(m1);
+    Matrix m = MATRIX(((int[2][3]){ {0, 1, 2}, {3, 4, 5}, }));
     m.print(m);
 
-    Matrix n = MATRIX(m2);
+    Matrix n = MATRIX(((int[3][2]){ {0, 1}, {2, 3}, {4, 5}, }));
     n.print(n);
 
     Matrix o = m.mul(m, n);
