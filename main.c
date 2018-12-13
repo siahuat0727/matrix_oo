@@ -50,5 +50,10 @@ int main()
     bool is_equal = mat_op.equal(o, ans, double_equal);
     puts(is_equal ? "Correct!" : "Wrong!");
 
+    mat_op.mfree(&m);
+    mat_op.mfree(&n);
+    mat_op.mfree(&o);
+    mat_op.mfree(&ans);
+
     return 0;
 }
