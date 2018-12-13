@@ -2,7 +2,6 @@
 #include <stdbool.h>
 
 typedef struct __matrix_impl Matrix;
-typedef void *(*EleGetFunc)(const Matrix, int, int);
 struct __matrix_impl {
     void **values;
     size_t sizeof_type;
@@ -19,11 +18,16 @@ typedef Matrix (*MatrixMulFunc)(const Matrix, const Matrix, EleFunc, EleFunc);
 typedef void (*ElePrintFunc)(void *);
 typedef void (*MatrixPrintFunc)(const Matrix, ElePrintFunc);
 
+typedef void (*MatrixFreeFunc)(Matrix *);
+
+typedef void *(*EleGetFunc)(const Matrix, int, int);
+
 typedef struct __matrix_op_impl MatrixOp;
 struct __matrix_op_impl {
     MatrixEqualFunc equal;
     MatrixMulFunc mul;
     MatrixPrintFunc print;
+    MatrixFreeFunc mfree;
     EleGetFunc get_ele;
 };
 

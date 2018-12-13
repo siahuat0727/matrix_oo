@@ -21,6 +21,7 @@
 static bool equal(const Matrix, const Matrix, EleEqualFunc);
 static Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add);
 static void print(const Matrix m, ElePrintFunc);
+static void mfree(Matrix *m);
 static void *get_ele(const Matrix m, int i, int j);
 
 MatrixOp matrix_op_impl()
@@ -29,6 +30,7 @@ MatrixOp matrix_op_impl()
         .equal = equal,
         .mul = mul,
         .print = print,
+        .mfree = mfree,
         .get_ele = get_ele,
     };
     return matrix_op;
@@ -46,9 +48,9 @@ Matrix matrix_impl(void* m, int num_row, int num_col, size_t sizeof_type)
     for (int i = 1; i < mat.num_row; ++i)
         mat.values[i] = (char*)mat.values[0] + i * sizeof_type * mat.num_col;
     if (m)
-        memcpy(mat.values, m, num_row * num_col * sizeof_type);
+        memcpy(mat.values[0], m, num_row * num_col * sizeof_type);
     else
-        memset(mat.values, 0, sizeof_type * mat.num_row * mat.num_col);
+        memset(mat.values[0], 0, sizeof_type * mat.num_row * mat.num_col);
     return mat;
 }
 
@@ -61,7 +63,7 @@ Matrix matrix_impl(void* m, int num_row, int num_col, size_t sizeof_type)
 
 static void *get_ele(const Matrix m, int i, int j)
 {
-    return (char*)m.values + m.sizeof_type * (i * m.num_col + j);
+    return (char*)*(m.values) + m.sizeof_type * (i * m.num_col + j);
 }
 
 static Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add)
@@ -103,4 +105,11 @@ static void print(const Matrix m, ElePrintFunc ele_print)
         puts("");
     }
     puts("");
+}
+
+static void mfree(Matrix *m)
+{
+    free(m->values[0]);
+    free((m->values));
+    memset(m, 0, sizeof(Matrix));
 }
