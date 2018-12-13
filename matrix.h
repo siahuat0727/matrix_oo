@@ -8,7 +8,6 @@ struct __matrix_impl {
     size_t sizeof_type;
     int num_row;
     int num_col;
-    EleGetFunc get_ele;
 };
 
 typedef bool (*EleEqualFunc)(void *, void *);
@@ -25,6 +24,7 @@ struct __matrix_op_impl {
     MatrixEqualFunc equal;
     MatrixMulFunc mul;
     MatrixPrintFunc print;
+    EleGetFunc get_ele;
 };
 
 

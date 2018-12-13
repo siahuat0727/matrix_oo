@@ -18,10 +18,10 @@
     }
 
 
-bool equal(const Matrix, const Matrix, EleEqualFunc);
-Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add);
-void print(const Matrix m, ElePrintFunc);
-void *get_ele(const Matrix m, int i, int j);
+static bool equal(const Matrix, const Matrix, EleEqualFunc);
+static Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add);
+static void print(const Matrix m, ElePrintFunc);
+static void *get_ele(const Matrix m, int i, int j);
 
 MatrixOp matrix_op_impl()
 {
@@ -29,6 +29,7 @@ MatrixOp matrix_op_impl()
         .equal = equal,
         .mul = mul,
         .print = print,
+        .get_ele = get_ele,
     };
     return matrix_op;
 }
@@ -39,7 +40,6 @@ Matrix matrix_impl(void* m, int num_row, int num_col, size_t sizeof_type)
         .sizeof_type = sizeof_type,
         .num_row = num_row,
         .num_col = num_col,
-        .get_ele = get_ele,
     };
     mat.values = (void **)malloc(sizeof(void *) * mat.num_row);
     mat.values[0] = malloc(sizeof_type * mat.num_col * mat.num_row);
@@ -59,12 +59,12 @@ Matrix matrix_impl(void* m, int num_row, int num_col, size_t sizeof_type)
         _a > _b ? _a : _b; \
         })
 
-void *get_ele(const Matrix m, int i, int j)
+static void *get_ele(const Matrix m, int i, int j)
 {
     return (char*)m.values + m.sizeof_type * (i * m.num_col + j);
 }
 
-Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add)
+static Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add)
 {
     return_val_if_fail(a.num_col == b.num_row, (Matrix){0});
     Matrix m = matrix_impl(NULL, a.num_row, b.num_col, max(a.sizeof_type, b.sizeof_type));
@@ -73,31 +73,31 @@ Matrix mul(const Matrix a, const Matrix b, EleFunc ele_mul, EleFunc ele_add)
         for (int j = 0; j < m.num_col; ++j) {
             for (int k = 0; k < a.num_col; ++k) {
                 char temp[m.sizeof_type];
-                ele_mul(a.get_ele(a, i, k), b.get_ele(b, k, j), temp);
-                ele_add(m.get_ele(m, i, j), temp, m.get_ele(m, i, j));
+                ele_mul(get_ele(a, i, k), get_ele(b, k, j), temp);
+                ele_add(get_ele(m, i, j), temp, get_ele(m, i, j));
             }
         }
     }
     return m;
 }
 
-bool equal(const Matrix a, const Matrix b, EleEqualFunc ele_equal)
+static bool equal(const Matrix a, const Matrix b, EleEqualFunc ele_equal)
 {
     if (a.num_row != b.num_row || a.num_col != b.num_col)
         return false;
 
     for (int i = 0; i < a.num_row; i++)
         for (int j = 0; j < a.num_col ; j++)
-            if (ele_equal(a.get_ele(a, i, j), b.get_ele(b, i, j)))
+            if (!ele_equal(get_ele(a, i, j), get_ele(b, i, j)))
                 return false;
     return true;
 }
 
-void print(const Matrix m, ElePrintFunc ele_print)
+static void print(const Matrix m, ElePrintFunc ele_print)
 {
     for (int i = 0; i < m.num_row; ++i) {
         for (int j = 0; j < m.num_col; ++j) {
-            ele_print(m.get_ele(m, i, j));
+            ele_print(get_ele(m, i, j));
             putchar(' ');
         }
         puts("");
